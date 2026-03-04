@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { defaultBubbles, getCategoryColor, getCategoryBg } from "@/data/bubbleData";
 import { Target, TrendingUp, TrendingDown, Edit2, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export default function GoalsPage() {
   const [bubbles, setBubbles] = useState(defaultBubbles);

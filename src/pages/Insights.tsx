@@ -1,8 +1,6 @@
-import { defaultBubbles, getCategoryColor, getCategoryBg } from "@/data/bubbleData";
+import { defaultBubbles, getCategoryColor } from "@/data/bubbleData";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { TrendingUp, TrendingDown, Minus, Brain } from "lucide-react";
-
-const RADIAN = Math.PI / 180;
 
 const aiInsights = [
   {
@@ -53,11 +51,6 @@ export default function InsightsPage() {
     category: b.category,
   }));
 
-  const categoryData = [
-    { name: "Productive", actual: 41, expected: 50, color: "hsl(162 77% 58%)" },
-    { name: "Lifestyle", actual: 15, expected: 18, color: "hsl(20 100% 70%)" },
-    { name: "Leisure", actual: 18, expected: 14, color: "hsl(88 55% 58%)" },
-  ];
 
   return (
     <div className="min-h-screen pb-24 pt-6 px-4">
