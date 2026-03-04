@@ -57,6 +57,10 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        productive: "hsl(var(--productive))",
+        lifestyle: "hsl(var(--lifestyle))",
+        leisure: "hsl(var(--leisure))",
+        "bubble-accent": "hsl(var(--bubble-accent))",
       },
       borderRadius: {
         lg: "var(--radius)",
