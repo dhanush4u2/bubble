@@ -2,95 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Bubble — Life Architecture Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Canvas dark */
+    --background: 222 16% 8%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 222 14% 11%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 222 14% 11%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Accent: teal-mint productive */
+    --primary: 162 77% 58%;
+    --primary-foreground: 222 16% 8%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Muted surface */
+    --secondary: 222 14% 15%;
+    --secondary-foreground: 210 20% 75%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 222 14% 13%;
+    --muted-foreground: 215 12% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Warm orange lifestyle */
+    --accent: 20 100% 70%;
+    --accent-foreground: 222 16% 8%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72% 58%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 222 14% 18%;
+    --input: 222 14% 16%;
+    --ring: 162 77% 58%;
 
-    --radius: 0.5rem;
+    --radius: 1rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Bubble brand colors */
+    --productive: 162 77% 58%;       /* #3BE8B0 */
+    --productive-rgb: 59 232 176;
+    --lifestyle: 20 100% 70%;        /* #FF8A65 */
+    --lifestyle-rgb: 255 138 101;
+    --leisure: 88 55% 58%;           /* #9CCC65 */
+    --leisure-rgb: 156 204 101;
+    --bubble-accent: 232 100% 74%;   /* #7C8CFF */
+    --bubble-accent-rgb: 124 140 255;
+    --glass: 0 0% 100% / 0.06;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Gradients */
+    --gradient-canvas: radial-gradient(ellipse at 20% 30%, hsl(162 77% 20% / 0.3) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 70%, hsl(232 100% 40% / 0.2) 0%, transparent 50%),
+                        hsl(222 16% 8%);
 
-    --sidebar-primary: 240 5.9% 10%;
+    --gradient-productive: linear-gradient(135deg, hsl(162 77% 58%), hsl(162 77% 40%));
+    --gradient-lifestyle: linear-gradient(135deg, hsl(20 100% 70%), hsl(20 100% 50%));
+    --gradient-leisure: linear-gradient(135deg, hsl(88 55% 58%), hsl(88 55% 40%));
+    --gradient-accent: linear-gradient(135deg, hsl(232 100% 74%), hsl(260 100% 65%));
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    /* Shadows */
+    --shadow-bubble: 0 0 40px hsl(162 77% 58% / 0.25);
+    --shadow-glass: 0 8px 32px hsl(222 16% 4% / 0.4);
+    --shadow-glow-productive: 0 0 30px hsl(162 77% 58% / 0.4);
+    --shadow-glow-lifestyle: 0 0 30px hsl(20 100% 70% / 0.4);
+    --shadow-glow-leisure: 0 0 30px hsl(88 55% 58% / 0.4);
+    --shadow-glow-accent: 0 0 30px hsl(232 100% 74% / 0.4);
 
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222 16% 8%;
+    --sidebar-foreground: 210 20% 75%;
+    --sidebar-primary: 162 77% 58%;
+    --sidebar-primary-foreground: 222 16% 8%;
+    --sidebar-accent: 222 14% 13%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 222 14% 18%;
+    --sidebar-ring: 162 77% 58%;
   }
 }
 
@@ -101,5 +89,102 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--gradient-canvas);
+    min-height: 100vh;
   }
 }
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .glow-productive {
+    box-shadow: var(--shadow-glow-productive);
+  }
+
+  .glow-lifestyle {
+    box-shadow: var(--shadow-glow-lifestyle);
+  }
+
+  .glow-leisure {
+    box-shadow: var(--shadow-glow-leisure);
+  }
+
+  .glow-accent {
+    box-shadow: var(--shadow-glow-accent);
+  }
+
+  .text-productive {
+    color: hsl(var(--productive));
+  }
+
+  .text-lifestyle {
+    color: hsl(var(--lifestyle));
+  }
+
+  .text-leisure {
+    color: hsl(var(--leisure));
+  }
+
+  .text-bubble-accent {
+    color: hsl(var(--bubble-accent));
+  }
+
+  .bg-productive {
+    background: hsl(var(--productive));
+  }
+
+  .bg-lifestyle {
+    background: hsl(var(--lifestyle));
+  }
+
+  .bg-leisure {
+    background: hsl(var(--leisure));
+  }
+
+  .bg-bubble-accent {
+    background: hsl(var(--bubble-accent));
+  }
+}
+
+@keyframes bubble-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
+@keyframes bubble-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes timer-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(162 77% 58% / 0.4); }
+  50% { box-shadow: 0 0 0 20px hsl(162 77% 58% / 0); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-bubble-pulse { animation: bubble-pulse 3s ease-in-out infinite; }
+.animate-bubble-float { animation: bubble-float 4s ease-in-out infinite; }
+.animate-timer-pulse { animation: timer-pulse 1.5s ease-in-out infinite; }
+.animate-fade-up { animation: fade-up 0.5s ease-out forwards; }
