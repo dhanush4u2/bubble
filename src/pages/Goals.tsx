@@ -8,7 +8,6 @@ export default function GoalsPage() {
   const [editValue, setEditValue] = useState(0);
 
   const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
-  const totalActual = bubbles.reduce((s, b) => s + b.actualWeeklyHours, 0);
 
   const handleSave = (id: string) => {
     setBubbles(prev => prev.map(b => b.id === id ? { ...b, expectedWeeklyHours: editValue } : b));
