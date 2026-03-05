@@ -2,83 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@700;800;900&display=swap');
 
-/* Bubble — Life Architecture Design System */
+/* Bubble — Comic Life Architecture Design System */
 
 @layer base {
   :root {
-    /* Canvas dark */
-    --background: 222 16% 8%;
-    --foreground: 210 20% 92%;
+    /* White canvas */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 5%;
 
-    --card: 222 14% 11%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 5%;
 
-    --popover: 222 14% 11%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 5%;
 
-    /* Accent: teal-mint productive */
-    --primary: 162 77% 58%;
-    --primary-foreground: 222 16% 8%;
+    /* Productive: green */
+    --primary: 123 47% 45%;
+    --primary-foreground: 0 0% 100%;
 
     /* Muted surface */
-    --secondary: 222 14% 15%;
-    --secondary-foreground: 210 20% 75%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 222 14% 13%;
-    --muted-foreground: 215 12% 50%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    /* Warm orange lifestyle */
-    --accent: 20 100% 70%;
-    --accent-foreground: 222 16% 8%;
+    /* Lifestyle: orange */
+    --accent: 33 100% 50%;
+    --accent-foreground: 0 0% 5%;
 
-    --destructive: 0 72% 58%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 14% 18%;
-    --input: 222 14% 16%;
-    --ring: 162 77% 58%;
+    --border: 0 0% 5%;
+    --input: 0 0% 92%;
+    --ring: 123 47% 45%;
 
     --radius: 1rem;
 
-    /* Bubble brand colors */
-    --productive: 162 77% 58%;       /* #3BE8B0 */
-    --productive-rgb: 59 232 176;
-    --lifestyle: 20 100% 70%;        /* #FF8A65 */
-    --lifestyle-rgb: 255 138 101;
-    --leisure: 88 55% 58%;           /* #9CCC65 */
-    --leisure-rgb: 156 204 101;
-    --bubble-accent: 232 100% 74%;   /* #7C8CFF */
-    --bubble-accent-rgb: 124 140 255;
-    --glass: 0 0% 100% / 0.06;
+    /* Bubble brand colors — new vibrant flat palette */
+    --productive: 123 47% 45%;       /* #4CAF50 green */
+    --productive-rgb: 76 175 80;
+    --lifestyle: 33 100% 50%;        /* #FF9800 orange */
+    --lifestyle-rgb: 255 152 0;
+    --leisure: 207 90% 54%;          /* #2196F3 blue */
+    --leisure-rgb: 33 150 243;
+    --bubble-accent: 0 100% 65%;     /* #FF5252 red-accent */
+    --bubble-accent-rgb: 255 82 82;
+    --neutral: 0 0% 96%;
 
-    /* Gradients */
-    --gradient-canvas: radial-gradient(ellipse at 20% 30%, hsl(162 77% 20% / 0.3) 0%, transparent 50%),
-                        radial-gradient(ellipse at 80% 70%, hsl(232 100% 40% / 0.2) 0%, transparent 50%),
-                        hsl(222 16% 8%);
+    /* Comic shadow offset */
+    --shadow-comic: 4px 4px 0px #000000;
+    --shadow-comic-lg: 6px 6px 0px #000000;
+    --shadow-comic-sm: 3px 3px 0px #000000;
 
-    --gradient-productive: linear-gradient(135deg, hsl(162 77% 58%), hsl(162 77% 40%));
-    --gradient-lifestyle: linear-gradient(135deg, hsl(20 100% 70%), hsl(20 100% 50%));
-    --gradient-leisure: linear-gradient(135deg, hsl(88 55% 58%), hsl(88 55% 40%));
-    --gradient-accent: linear-gradient(135deg, hsl(232 100% 74%), hsl(260 100% 65%));
-
-    /* Shadows */
-    --shadow-bubble: 0 0 40px hsl(162 77% 58% / 0.25);
-    --shadow-glass: 0 8px 32px hsl(222 16% 4% / 0.4);
-    --shadow-glow-productive: 0 0 30px hsl(162 77% 58% / 0.4);
-    --shadow-glow-lifestyle: 0 0 30px hsl(20 100% 70% / 0.4);
-    --shadow-glow-leisure: 0 0 30px hsl(88 55% 58% / 0.4);
-    --shadow-glow-accent: 0 0 30px hsl(232 100% 74% / 0.4);
-
-    --sidebar-background: 222 16% 8%;
-    --sidebar-foreground: 210 20% 75%;
-    --sidebar-primary: 162 77% 58%;
-    --sidebar-primary-foreground: 222 16% 8%;
-    --sidebar-accent: 222 14% 13%;
-    --sidebar-accent-foreground: 210 20% 92%;
-    --sidebar-border: 222 14% 18%;
-    --sidebar-ring: 162 77% 58%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 5%;
+    --sidebar-primary: 123 47% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 5%;
+    --sidebar-border: 0 0% 5%;
+    --sidebar-ring: 123 47% 45%;
   }
 }
 
@@ -90,40 +77,50 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--gradient-canvas);
+    background: #FFFFFF;
     min-height: 100vh;
   }
 }
 
 @layer utilities {
-  .glass {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+  /* Comic card style */
+  .comic-card {
+    background: #FFFFFF;
+    border: 3px solid #000000;
+    box-shadow: var(--shadow-comic);
+    border-radius: var(--radius);
   }
 
-  .glass-strong {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+  .comic-card-lg {
+    background: #FFFFFF;
+    border: 4px solid #000000;
+    box-shadow: var(--shadow-comic-lg);
+    border-radius: var(--radius);
   }
 
-  .glow-productive {
-    box-shadow: var(--shadow-glow-productive);
+  .comic-card-sm {
+    background: #FFFFFF;
+    border: 2px solid #000000;
+    box-shadow: var(--shadow-comic-sm);
+    border-radius: calc(var(--radius) - 4px);
   }
 
-  .glow-lifestyle {
-    box-shadow: var(--shadow-glow-lifestyle);
+  .comic-btn {
+    border: 3px solid #000000;
+    box-shadow: var(--shadow-comic-sm);
+    font-weight: 700;
+    transition: all 0.1s;
+    border-radius: calc(var(--radius) - 4px);
   }
 
-  .glow-leisure {
-    box-shadow: var(--shadow-glow-leisure);
+  .comic-btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px #000000;
   }
 
-  .glow-accent {
-    box-shadow: var(--shadow-glow-accent);
+  .comic-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #000000;
   }
 
   .text-productive {
@@ -157,34 +154,40 @@
   .bg-bubble-accent {
     background: hsl(var(--bubble-accent));
   }
+
+  .bg-neutral {
+    background: hsl(var(--neutral));
+  }
 }
 
 @keyframes bubble-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(1.03); opacity: 1; }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
 }
 
 @keyframes bubble-float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-6px); }
 }
 
 @keyframes timer-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(162 77% 58% / 0.4); }
-  50% { box-shadow: 0 0 0 20px hsl(162 77% 58% / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 hsl(123 47% 45% / 0.4), 4px 4px 0px #000000; }
+  50% { box-shadow: 0 0 0 16px hsl(123 47% 45% / 0), 4px 4px 0px #000000; }
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+@keyframes comic-bounce {
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.15) rotate(-2deg); }
+  60% { transform: scale(0.95) rotate(1deg); }
 }
 
 .animate-bubble-pulse { animation: bubble-pulse 3s ease-in-out infinite; }
 .animate-bubble-float { animation: bubble-float 4s ease-in-out infinite; }
 .animate-timer-pulse { animation: timer-pulse 1.5s ease-in-out infinite; }
-.animate-fade-up { animation: fade-up 0.5s ease-out forwards; }
+.animate-fade-up { animation: fade-up 0.4s ease-out forwards; }
+.animate-comic-bounce { animation: comic-bounce 0.4s ease-out; }
