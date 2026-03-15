@@ -1,5 +1,4 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { Chrome } from "lucide-react";
 
 export const LoginPage = () => {
   const { signInWithGoogle, loading } = useAuth();

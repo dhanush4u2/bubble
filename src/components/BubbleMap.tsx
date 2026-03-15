@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { BubbleItem, getCategoryColor, getCategoryLightBg, defaultBubbles } from "@/data/bubbleData";
+import { BubbleItem, getCategoryColor, getCategoryLightBg } from "@/data/bubbleData";
 import {
   Plus, X, Briefcase, BookOpen, Activity, Heart, Gamepad2,
   Brain, Calendar, ClipboardList, GraduationCap, BookMarked, Rocket,
   Dumbbell, Moon, Wind, Users, UserCheck, Tv, Palette, Smartphone,
-  Clock, TrendingUp, TrendingDown, Target,
+  Clock, TrendingUp, TrendingDown, Target, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimeLogs } from "@/hooks/useTimeLogs";
+import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
+import { useLifeScore } from "@/hooks/useLifeScore";
 
 const BUBBLE_ICONS: Record<string, React.ElementType> = {
   work: Briefcase, upskilling: BookOpen, health: Activity, relationships: Heart, leisure: Gamepad2,
@@ -18,7 +20,7 @@ const BUBBLE_ICONS: Record<string, React.ElementType> = {
   'leisure-entertainment': Tv, 'leisure-hobbies': Palette, 'leisure-social': Smartphone,
 };
 
-// ─── Bubble Node ─────────────────────────────────────────────────────────────
+// ─── Bubble Node with Progress Ring ──────────────────────────────────────────
 interface BubbleNodeProps {
   bubble: BubbleItem;
   size: number;
@@ -30,12 +32,24 @@ interface BubbleNodeProps {
 
 const BubbleNode = ({ bubble, size, x, y, onSelect, delay = 0 }: BubbleNodeProps) => {
   const [hovered, setHovered] = useState(false);
-  const ratio = bubble.actualWeeklyHours / bubble.expectedWeeklyHours;
+  const [tapped, setTapped] = useState(false);
+  const ratio = bubble.expectedWeeklyHours > 0 ? bubble.actualWeeklyHours / bubble.expectedWeeklyHours : 0;
   const isOver = ratio > 1;
-  const displaySize = Math.max(size * (0.7 + ratio * 0.3), size * 0.5);
+  const displaySize = Math.max(size * (0.7 + Math.min(ratio, 1.5) * 0.3), size * 0.5);
   const color = getCategoryColor(bubble.category);
   const lightBg = getCategoryLightBg(bubble.category);
   const IconComponent = BUBBLE_ICONS[bubble.id] || Briefcase;
+
+  // Progress ring
+  const ringRadius = displaySize / 2 - 4;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringProgress = Math.min(ratio, 1);
+
+  const handleClick = () => {
+    setTapped(true);
+    setTimeout(() => setTapped(false), 250);
+    onSelect(bubble);
+  };
 
   return (
     <div
@@ -45,33 +59,57 @@ const BubbleNode = ({ bubble, size, x, y, onSelect, delay = 0 }: BubbleNodeProps
         width: displaySize, height: displaySize,
         animationDelay: `${delay}ms`, zIndex: hovered ? 10 : 1,
       }}
-      onClick={() => onSelect(bubble)}
+      onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Progress ring SVG */}
+      <svg className="absolute inset-0 -rotate-90" width={displaySize} height={displaySize} style={{ zIndex: 2 }}>
+        <circle
+          cx={displaySize / 2} cy={displaySize / 2} r={ringRadius}
+          fill="none" stroke="#E0E0E0" strokeWidth="3" opacity="0.4"
+        />
+        <circle
+          cx={displaySize / 2} cy={displaySize / 2} r={ringRadius}
+          fill="none" stroke={isOver ? '#FF5252' : color} strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={ringCircumference}
+          strokeDashoffset={ringCircumference * (1 - ringProgress)}
+          className="transition-all duration-700"
+        />
+      </svg>
+
       <div
-        className={cn("w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-200 animate-bubble-float", hovered ? "scale-110" : "scale-100")}
+        className={cn(
+          "w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-200 animate-bubble-float",
+          hovered && "scale-110",
+          tapped && "animate-tap-bounce",
+        )}
         style={{
           background: lightBg,
-          border: `4px solid ${isOver ? '#FF5252' : '#000000'}`,
+          border: `3px solid ${isOver ? '#FF5252' : '#000000'}`,
           boxShadow: hovered ? `6px 6px 0px ${isOver ? '#FF5252' : '#000000'}` : `4px 4px 0px ${isOver ? '#FF5252' : '#000000'}`,
           animationDuration: `${3 + (delay % 3) * 0.5}s`,
           animationDelay: `${delay}ms`,
         }}
       >
-        <IconComponent size={displaySize > 90 ? 24 : 18} color={isOver ? '#FF5252' : color} strokeWidth={2.5} />
-        <span className="font-bold text-center px-1 leading-tight mt-1" style={{ fontSize: displaySize > 100 ? 11 : 9, color: '#000000' }}>
+        <IconComponent size={displaySize > 90 ? 22 : 16} color={isOver ? '#FF5252' : color} strokeWidth={2.5} />
+        <span className="font-bold text-center px-1 leading-tight mt-0.5" style={{ fontSize: displaySize > 100 ? 11 : 9, color: '#000000' }}>
           {bubble.name}
         </span>
-        <span className="font-bold" style={{ fontSize: displaySize > 100 ? 10 : 8, color: isOver ? '#FF5252' : color }}>
-          {bubble.actualWeeklyHours}h
+        <span className="font-black" style={{ fontSize: displaySize > 100 ? 10 : 8, color: isOver ? '#FF5252' : color }}>
+          {bubble.actualWeeklyHours.toFixed(1)}h
         </span>
       </div>
+
       {hovered && (
-        <div className="absolute -top-14 left-1/2 -translate-x-1/2 whitespace-nowrap z-20 pointer-events-none animate-fade-up"
+        <div className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap z-20 pointer-events-none animate-fade-up"
           style={{ background: '#FFFFFF', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 10, padding: '6px 12px' }}>
           <p className="text-xs font-bold text-foreground">{bubble.name}</p>
-          <p className="text-[10px] text-muted-foreground">{bubble.actualWeeklyHours}h / {bubble.expectedWeeklyHours}h expected</p>
+          <p className="text-[10px] text-muted-foreground">{bubble.actualWeeklyHours.toFixed(1)}h / {bubble.expectedWeeklyHours}h target</p>
+          <p className="text-[10px] font-bold" style={{ color: isOver ? '#FF5252' : color }}>
+            {Math.round(ratio * 100)}% {isOver ? '(over)' : 'complete'}
+          </p>
         </div>
       )}
     </div>
@@ -144,7 +182,7 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
     const color = getCategoryColor(bubble.category);
     const lightBg = getCategoryLightBg(bubble.category);
     const IconComponent = BUBBLE_ICONS[bubble.id] || Briefcase;
-    const ratio = bubble.actualWeeklyHours / bubble.expectedWeeklyHours;
+    const ratio = bubble.expectedWeeklyHours > 0 ? bubble.actualWeeklyHours / bubble.expectedWeeklyHours : 0;
     const isOver = ratio > 1;
     const isBehind = ratio < 0.6;
 
@@ -269,25 +307,19 @@ const BUBBLE_LAYOUT: Record<string, { x: number; y: number; size: number }> = {
 
 // ─── Main BubbleMap ───────────────────────────────────────────────────────────
 export const BubbleMap = () => {
-  const [bubbles, setBubbles] = useState(defaultBubbles);
+  const { bubbles, updateBubbleHours } = useFirestoreBubbles();
   const [selected, setSelected] = useState<BubbleItem | null>(null);
   const [zoom, setZoom] = useState(1);
   const [expandedBubble, setExpandedBubble] = useState<string | null>(null);
   const { logs, logTime } = useTimeLogs();
+  const lifeScore = useLifeScore(bubbles, logs);
 
   const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
   const totalActual = bubbles.reduce((s, b) => s + b.actualWeeklyHours, 0);
-  const balanceScore = Math.round((totalActual / totalExpected) * 100);
+  const balanceScore = totalExpected > 0 ? Math.round((totalActual / totalExpected) * 100) : 0;
 
   const handleLog = async (bubbleId: string, bubbleName: string, minutes: number) => {
-    // Optimistic local update
-    setBubbles(prev => prev.map(b => {
-      if (b.id === bubbleId) return { ...b, actualWeeklyHours: b.actualWeeklyHours + minutes / 60 };
-      const child = b.children?.find(c => c.id === bubbleId);
-      if (child) return { ...b, actualWeeklyHours: b.actualWeeklyHours + minutes / 60 };
-      return b;
-    }));
-    // Persist to Firestore
+    await updateBubbleHours(bubbleId, minutes);
     await logTime(bubbleId, bubbleName, minutes, "manual");
   };
 
@@ -332,6 +364,13 @@ export const BubbleMap = () => {
                 <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">This Week</p>
                 <p className="text-base font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h <span className="text-muted-foreground text-xs font-normal">/ {totalExpected}h</span></p>
               </div>
+              <div className="px-4 py-2" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+                <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Life Score</p>
+                <div className="flex items-center gap-1">
+                  <Zap size={14} strokeWidth={2.5} color="#9C27B0" />
+                  <p className="text-base font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
+                </div>
+              </div>
               <div className="px-4 py-2" style={{ background: '#E3F2FD', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
                 <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Balance</p>
                 <p className="text-base font-black" style={{ color: '#2196F3' }}>{balanceScore}%</p>
@@ -345,9 +384,12 @@ export const BubbleMap = () => {
               <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">This Week</p>
               <p className="text-base font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h <span className="text-muted-foreground text-xs font-normal">/ {totalExpected}h</span></p>
             </div>
-            <div className="flex-1 px-3 py-2" style={{ background: '#E3F2FD', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Life Balance</p>
-              <p className="text-base font-black" style={{ color: '#2196F3' }}>{balanceScore}%</p>
+            <div className="flex-1 px-3 py-2" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Life Score</p>
+              <div className="flex items-center gap-1">
+                <Zap size={14} strokeWidth={2.5} color="#9C27B0" />
+                <p className="text-base font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
+              </div>
             </div>
             <div className="px-3 py-2 flex items-center gap-1" style={{ background: '#F5F5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
               <button onClick={() => setZoom(z => Math.max(0.7, z - 0.1))} className="font-black text-lg leading-none px-1 text-foreground">−</button>
@@ -396,8 +438,10 @@ export const BubbleMap = () => {
         <div className="absolute bottom-24 left-4 right-4 flex gap-2 flex-wrap justify-center lg:bottom-6">
           {[
             { label: 'Work', color: '#4CAF50', bg: '#E8F5E9' },
-            { label: 'Lifestyle', color: '#FF9800', bg: '#FFF3E0' },
-            { label: 'Leisure', color: '#2196F3', bg: '#E3F2FD' },
+            { label: 'Learning', color: '#2196F3', bg: '#E3F2FD' },
+            { label: 'Health', color: '#FF9800', bg: '#FFF3E0' },
+            { label: 'People', color: '#E91E63', bg: '#FCE4EC' },
+            { label: 'Leisure', color: '#9C27B0', bg: '#F3E5F5' },
           ].map(({ label, color, bg }) => (
             <div key={label} className="flex items-center gap-1.5 px-3 py-1.5"
               style={{ background: bg, border: '2px solid #000000', boxShadow: '2px 2px 0px #000000', borderRadius: 20 }}>

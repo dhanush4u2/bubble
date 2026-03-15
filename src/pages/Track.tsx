@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { defaultBubbles, getCategoryColor, getCategoryLightBg, BubbleItem } from "@/data/bubbleData";
+import { getCategoryColor, getCategoryLightBg, BubbleItem } from "@/data/bubbleData";
 import { Play, Pause, RotateCcw, CheckCircle, Briefcase, BookOpen, Activity, Heart, Gamepad2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimeLogs } from "@/hooks/useTimeLogs";
+import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
 
 const FOCUS_DURATIONS = [15, 25, 45, 60, 90];
 
@@ -18,6 +19,7 @@ export default function TrackPage() {
   const [manualMinutes, setManualMinutes] = useState(30);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const { logs, logTime } = useTimeLogs();
+  const { bubbles, updateBubbleHours } = useFirestoreBubbles();
 
   useEffect(() => { setTimeLeft(timerMinutes * 60); setIsRunning(false); }, [timerMinutes]);
 
@@ -29,6 +31,7 @@ export default function TrackPage() {
             clearInterval(intervalRef.current);
             setIsRunning(false);
             if (selectedBubble) {
+              updateBubbleHours(selectedBubble.id, timerMinutes);
               logTime(selectedBubble.id, selectedBubble.name, timerMinutes, "pomodoro");
             }
             return 0;
@@ -48,6 +51,7 @@ export default function TrackPage() {
 
   const handleLogManual = async () => {
     if (!selectedBubble) return;
+    await updateBubbleHours(selectedBubble.id, manualMinutes);
     await logTime(selectedBubble.id, selectedBubble.name, manualMinutes, "manual");
   };
 
@@ -58,7 +62,7 @@ export default function TrackPage() {
       <div className="mb-5">
         <p className="text-[10px] font-black text-foreground mb-3 uppercase tracking-widest">Select Bubble</p>
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {defaultBubbles.map(bubble => {
+          {bubbles.map(bubble => {
             const isSelected = selectedBubble?.id === bubble.id;
             const color = getCategoryColor(bubble.category);
             const lightBg = getCategoryLightBg(bubble.category);
@@ -136,7 +140,7 @@ export default function TrackPage() {
           <p className="text-[10px] font-black text-foreground mb-3 uppercase tracking-widest">Recent Sessions</p>
           <div className="space-y-2">
             {logs.slice(0, 5).map((log, i) => {
-              const bubble = defaultBubbles.find(b => b.id === log.bubbleId);
+              const bubble = bubbles.find(b => b.id === log.bubbleId);
               const color = bubble ? getCategoryColor(bubble.category) : '#4CAF50';
               const lightBg = bubble ? getCategoryLightBg(bubble.category) : '#E8F5E9';
               return (

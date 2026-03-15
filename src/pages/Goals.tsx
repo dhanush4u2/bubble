@@ -1,11 +1,52 @@
-import { useState } from "react";
-import { defaultBubbles, getCategoryColor, getCategoryLightBg } from "@/data/bubbleData";
-import { Target, TrendingUp, TrendingDown, Edit2, Check, AlertTriangle, BookOpen } from "lucide-react";
+import { useState, useMemo } from "react";
+import { getCategoryColor, getCategoryLightBg, BubbleItem } from "@/data/bubbleData";
+import { Target, TrendingUp, TrendingDown, Edit2, Check, AlertTriangle, BookOpen, Zap } from "lucide-react";
+import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
+import { useTimeLogs } from "@/hooks/useTimeLogs";
+import { useLifeScore } from "@/hooks/useLifeScore";
+
+/** Generate dynamic life drift alerts from real bubble data */
+const generateDriftAlerts = (bubbles: BubbleItem[]) => {
+  const alerts: { Icon: React.ElementType; text: string; color: string; bg: string }[] = [];
+
+  bubbles.forEach(b => {
+    if (b.expectedWeeklyHours <= 0) return;
+    const diff = b.actualWeeklyHours - b.expectedWeeklyHours;
+    const ratio = b.actualWeeklyHours / b.expectedWeeklyHours;
+
+    if (diff > 2) {
+      alerts.push({
+        Icon: AlertTriangle,
+        text: `${b.name} is ${diff.toFixed(1)}h above target this week`,
+        color: '#FF5252', bg: '#FFEBEE',
+      });
+    } else if (ratio < 0.5 && b.expectedWeeklyHours >= 5) {
+      alerts.push({
+        Icon: BookOpen,
+        text: `${b.name} is ${Math.abs(diff).toFixed(1)}h below target — at risk this week`,
+        color: '#FF9800', bg: '#FFF3E0',
+      });
+    }
+  });
+
+  if (alerts.length === 0) {
+    alerts.push({
+      Icon: Target,
+      text: "All bubbles are within range. You're managing your time well!",
+      color: '#4CAF50', bg: '#E8F5E9',
+    });
+  }
+
+  return alerts;
+};
 
 const GoalsContent = () => {
-  const [bubbles, setBubbles] = useState(defaultBubbles);
+  const { bubbles, updateExpectedHours } = useFirestoreBubbles();
+  const { logs } = useTimeLogs();
+  const lifeScore = useLifeScore(bubbles, logs);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState(0);
+  const driftAlerts = useMemo(() => generateDriftAlerts(bubbles), [bubbles]);
 
   const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
   const TOTAL_HOURS_IN_WEEK = 168;
@@ -13,12 +54,29 @@ const GoalsContent = () => {
   const unallocated = TOTAL_HOURS_IN_WEEK - totalExpected;
 
   const handleSave = (id: string) => {
-    setBubbles(prev => prev.map(b => b.id === id ? { ...b, expectedWeeklyHours: editValue } : b));
+    updateExpectedHours(id, editValue);
     setEditingId(null);
   };
 
   return (
     <>
+      {/* Life Score Summary */}
+      <div className="mb-5" style={{ background: '#F3E5F5', border: '4px solid #000000', boxShadow: '6px 6px 0px #000000', borderRadius: 16, padding: 20 }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap size={20} strokeWidth={2.5} color="#9C27B0" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Life Score</p>
+              <p className="text-2xl font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}<span className="text-sm font-medium text-muted-foreground"> / 100</span></p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-black text-muted-foreground uppercase">Balance</p>
+            <p className="text-lg font-black" style={{ color: '#2196F3' }}>{lifeScore.balance}%</p>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-5" style={{ background: '#FFFFFF', border: '4px solid #000000', boxShadow: '6px 6px 0px #000000', borderRadius: 16, padding: 20 }}>
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -43,7 +101,7 @@ const GoalsContent = () => {
       <div className="space-y-3 mb-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-3">Category Targets</p>
         {bubbles.map((bubble, i) => {
-          const ratio = bubble.actualWeeklyHours / bubble.expectedWeeklyHours;
+          const ratio = bubble.expectedWeeklyHours > 0 ? bubble.actualWeeklyHours / bubble.expectedWeeklyHours : 0;
           const isOver = ratio > 1;
           const isMissing = ratio < 0.6;
           const color = getCategoryColor(bubble.category);
@@ -84,7 +142,7 @@ const GoalsContent = () => {
                   </div>
                   <div className="relative h-2.5 overflow-hidden mb-1.5" style={{ background: lightBg, border: '2px solid #000000', borderRadius: 6 }}>
                     <div className="absolute left-0 top-0 h-full transition-all duration-700"
-                      style={{ width: `${Math.min((bubble.actualWeeklyHours / bubble.expectedWeeklyHours) * 100, 100)}%`, background: isOver ? '#FF5252' : color }} />
+                      style={{ width: `${Math.min(ratio * 100, 100)}%`, background: isOver ? '#FF5252' : color }} />
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-medium text-muted-foreground">{bubble.actualWeeklyHours.toFixed(1)}h logged</span>
@@ -104,10 +162,7 @@ const GoalsContent = () => {
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-3">Life Drift Alerts</p>
         <div className="space-y-2">
-          {[
-            { Icon: AlertTriangle, text: "Leisure 4h above target this week", color: '#FF5252', bg: '#FFEBEE' },
-            { Icon: BookOpen, text: "Learning 5h below target — upskilling at risk", color: '#FF9800', bg: '#FFF3E0' },
-          ].map(({ Icon, text, color, bg }, i) => (
+          {driftAlerts.map(({ Icon, text, color, bg }, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-3"
               style={{ background: bg, border: '3px solid #000000', boxShadow: '4px 4px 0px #000000', borderRadius: 12, borderLeft: `6px solid ${color}` }}>
               <Icon size={16} color={color} strokeWidth={2.5} className="flex-shrink-0" />

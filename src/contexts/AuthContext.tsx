@@ -23,18 +23,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("[Auth] onAuthStateChanged →", firebaseUser ? firebaseUser.email : "signed out");
       setUser(firebaseUser);
       if (firebaseUser) {
-        // Create user doc on first login
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const snap = await getDoc(userRef);
-        if (!snap.exists()) {
-          await setDoc(userRef, {
-            name: firebaseUser.displayName,
-            email: firebaseUser.email,
-            photoURL: firebaseUser.photoURL,
-            createdAt: serverTimestamp(),
-          });
+        try {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const snap = await getDoc(userRef);
+          if (!snap.exists()) {
+            console.log("[Auth] Creating user profile in Firestore…");
+            await setDoc(userRef, {
+              name: firebaseUser.displayName,
+              email: firebaseUser.email,
+              photoURL: firebaseUser.photoURL,
+              createdAt: serverTimestamp(),
+            });
+            console.log("[Auth] ✅ User profile created");
+          } else {
+            console.log("[Auth] ✅ User profile exists in Firestore");
+          }
+        } catch (err) {
+          console.error("[Auth] ❌ Failed to sync user profile:", err);
+          console.error("[Auth]   ↳ Check Firestore security rules for users/{userId}.");
         }
       }
       setLoading(false);
@@ -43,10 +52,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    console.log("[Auth] Signing in with Google…");
     await signInWithPopup(auth, googleProvider);
   };
 
   const logout = async () => {
+    console.log("[Auth] Signing out…");
     await signOut(auth);
   };
 

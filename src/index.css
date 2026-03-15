@@ -42,15 +42,19 @@
 
     --radius: 1rem;
 
-    /* Bubble brand colors — new vibrant flat palette */
+    /* Bubble brand colors — v2.0 per-category palette */
     --productive: 123 47% 45%;       /* #4CAF50 green */
     --productive-rgb: 76 175 80;
-    --lifestyle: 33 100% 50%;        /* #FF9800 orange */
-    --lifestyle-rgb: 255 152 0;
-    --leisure: 207 90% 54%;          /* #2196F3 blue */
-    --leisure-rgb: 33 150 243;
-    --bubble-accent: 0 100% 65%;     /* #FF5252 red-accent */
-    --bubble-accent-rgb: 255 82 82;
+    --learning: 207 90% 54%;         /* #2196F3 blue */
+    --learning-rgb: 33 150 243;
+    --health: 33 100% 50%;           /* #FF9800 orange */
+    --health-rgb: 255 152 0;
+    --relationships: 340 82% 52%;    /* #E91E63 pink */
+    --relationships-rgb: 233 30 99;
+    --leisure: 291 47% 41%;          /* #9C27B0 purple */
+    --leisure-rgb: 156 39 176;
+    --bubble-warning: 0 100% 65%;    /* #FF5252 red */
+    --bubble-warning-rgb: 255 82 82;
     --neutral: 0 0% 96%;
 
     /* Comic shadow offset */
@@ -127,32 +131,48 @@
     color: hsl(var(--productive));
   }
 
-  .text-lifestyle {
-    color: hsl(var(--lifestyle));
+  .text-learning {
+    color: hsl(var(--learning));
+  }
+
+  .text-health {
+    color: hsl(var(--health));
+  }
+
+  .text-relationships {
+    color: hsl(var(--relationships));
   }
 
   .text-leisure {
     color: hsl(var(--leisure));
   }
 
-  .text-bubble-accent {
-    color: hsl(var(--bubble-accent));
+  .text-bubble-warning {
+    color: hsl(var(--bubble-warning));
   }
 
   .bg-productive {
     background: hsl(var(--productive));
   }
 
-  .bg-lifestyle {
-    background: hsl(var(--lifestyle));
+  .bg-learning {
+    background: hsl(var(--learning));
+  }
+
+  .bg-health {
+    background: hsl(var(--health));
+  }
+
+  .bg-relationships {
+    background: hsl(var(--relationships));
   }
 
   .bg-leisure {
     background: hsl(var(--leisure));
   }
 
-  .bg-bubble-accent {
-    background: hsl(var(--bubble-accent));
+  .bg-bubble-warning {
+    background: hsl(var(--bubble-warning));
   }
 
   .bg-neutral {
@@ -186,8 +206,22 @@
   60% { transform: scale(0.95) rotate(1deg); }
 }
 
+@keyframes tap-bounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.92); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(76, 175, 80, 0); }
+}
+
 .animate-bubble-pulse { animation: bubble-pulse 3s ease-in-out infinite; }
 .animate-bubble-float { animation: bubble-float 4s ease-in-out infinite; }
 .animate-timer-pulse { animation: timer-pulse 1.5s ease-in-out infinite; }
 .animate-fade-up { animation: fade-up 0.4s ease-out forwards; }
 .animate-comic-bounce { animation: comic-bounce 0.4s ease-out; }
+.animate-tap-bounce { animation: tap-bounce 0.25s ease-out; }
+.animate-focus-pulse { animation: focus-pulse 1.5s ease-in-out infinite; }
