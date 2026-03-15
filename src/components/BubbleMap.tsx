@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { motion, AnimatePresence, useMotionValue } from "framer-motion";
 import { BubbleItem, getCategoryColor, getCategoryLightBg } from "@/data/bubbleData";
 import {
-  Plus, X, Briefcase, BookOpen, Activity, Heart, Gamepad2,
+  X, Briefcase, BookOpen, Activity, Heart, Gamepad2,
   Brain, Calendar, ClipboardList, GraduationCap, BookMarked, Rocket,
   Dumbbell, Moon, Wind, Users, UserCheck, Tv, Palette, Smartphone,
-  Clock, TrendingUp, TrendingDown, Target, Zap,
+  TrendingUp, TrendingDown, Target, Zap, ChevronLeft, Clock,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useTimeLogs } from "@/hooks/useTimeLogs";
 import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
 import { useLifeScore } from "@/hooks/useLifeScore";
 
+// ─── Icon map ────────────────────────────────────────────────────────────────
 const BUBBLE_ICONS: Record<string, React.ElementType> = {
   work: Briefcase, upskilling: BookOpen, health: Activity, relationships: Heart, leisure: Gamepad2,
   'work-deep': Brain, 'work-meetings': Calendar, 'work-admin': ClipboardList,
@@ -20,133 +21,171 @@ const BUBBLE_ICONS: Record<string, React.ElementType> = {
   'leisure-entertainment': Tv, 'leisure-hobbies': Palette, 'leisure-social': Smartphone,
 };
 
-// ─── Bubble Node with Progress Ring ──────────────────────────────────────────
-interface BubbleNodeProps {
-  bubble: BubbleItem;
-  size: number;
-  x: number;
-  y: number;
-  onSelect: (bubble: BubbleItem) => void;
-  delay?: number;
+// ─── Force layout ─────────────────────────────────────────────────────────────
+interface Point { x: number; y: number }
+
+function computeLayout(items: BubbleItem[], isDrill: boolean): Record<string, Point> {
+  if (items.length === 0) return {};
+  if (items.length === 1) return { [items[0].id]: { x: 0, y: 0 } };
+
+  const MIN_DIST = isDrill ? 130 : 180;
+  const ORBIT_R  = isDrill ? 110 : 160;
+  const positions: Record<string, Point> = {};
+
+  // Seed positions on a circle
+  items.forEach((b, i) => {
+    const angle = (2 * Math.PI * i) / items.length - Math.PI / 2;
+    positions[b.id] = { x: ORBIT_R * Math.cos(angle), y: ORBIT_R * Math.sin(angle) };
+  });
+
+  // Iterative repulsion + center gravity
+  for (let iter = 0; iter < 140; iter++) {
+    for (const a of items) {
+      let fx = 0, fy = 0;
+      for (const b of items) {
+        if (a.id === b.id) continue;
+        const dx = positions[a.id].x - positions[b.id].x;
+        const dy = positions[a.id].y - positions[b.id].y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 0.1;
+        if (d < MIN_DIST) {
+          const f = ((MIN_DIST - d) / MIN_DIST) * 3;
+          fx += (dx / d) * f;
+          fy += (dy / d) * f;
+        }
+      }
+      const g = isDrill ? 0.02 : 0.035;
+      fx -= positions[a.id].x * g;
+      fy -= positions[a.id].y * g;
+      positions[a.id].x += fx;
+      positions[a.id].y += fy;
+    }
+  }
+  return positions;
 }
 
-const BubbleNode = ({ bubble, size, x, y, onSelect, delay = 0 }: BubbleNodeProps) => {
-  const [hovered, setHovered] = useState(false);
-  const [tapped, setTapped] = useState(false);
+// ─── Bubble Node ─────────────────────────────────────────────────────────────
+interface BubbleNodeProps {
+  bubble: BubbleItem;
+  pos: Point;
+  baseSize: number;
+  isSelected: boolean;
+  isDrillable: boolean;
+  index: number;
+  onSelect: (b: BubbleItem) => void;
+  onDrill: (b: BubbleItem) => void;
+}
+
+const BubbleNode = ({ bubble, pos, baseSize, isSelected, isDrillable, index, onSelect, onDrill }: BubbleNodeProps) => {
   const ratio = bubble.expectedWeeklyHours > 0 ? bubble.actualWeeklyHours / bubble.expectedWeeklyHours : 0;
   const isOver = ratio > 1;
-  const displaySize = Math.max(size * (0.7 + Math.min(ratio, 1.5) * 0.3), size * 0.5);
+  const displaySize = Math.max(baseSize * (0.65 + Math.min(ratio, 1.5) * 0.35), baseSize * 0.55);
+
   const color = getCategoryColor(bubble.category);
   const lightBg = getCategoryLightBg(bubble.category);
-  const IconComponent = BUBBLE_ICONS[bubble.id] || Briefcase;
+  const Icon = BUBBLE_ICONS[bubble.id] ?? Briefcase;
 
-  // Progress ring
-  const ringRadius = displaySize / 2 - 4;
-  const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringProgress = Math.min(ratio, 1);
+  const ringR = displaySize / 2 - 5;
+  const ringC = 2 * Math.PI * ringR;
 
-  const handleClick = () => {
-    setTapped(true);
-    setTimeout(() => setTapped(false), 250);
-    onSelect(bubble);
-  };
+  const lastTapRef = useRef(0);
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastTapRef.current < 200 && isDrillable) {
+      onDrill(bubble);
+    } else {
+      onSelect(bubble);
+    }
+    lastTapRef.current = now;
+  }, [bubble, isDrillable, onSelect, onDrill]);
+
+  const iconSize = displaySize > 90 ? 20 : displaySize > 70 ? 15 : 12;
+  const fontSize = displaySize > 90 ? 10 : displaySize > 70 ? 8 : 7;
 
   return (
-    <div
-      className="absolute cursor-pointer select-none"
-      style={{
-        left: x - displaySize / 2, top: y - displaySize / 2,
-        width: displaySize, height: displaySize,
-        animationDelay: `${delay}ms`, zIndex: hovered ? 10 : 1,
-      }}
+    <motion.div
+      data-bubble="true"
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1, x: pos.x - displaySize / 2, y: pos.y - displaySize / 2 }}
+      exit={{ scale: 0, opacity: 0, transition: { duration: 0.18 } }}
+      transition={{ type: "spring", stiffness: 240, damping: 22, delay: index * 0.045 }}
+      whileTap={{ scale: 0.88 }}
+      style={{ position: 'absolute', top: 0, left: 0, width: displaySize, height: displaySize, zIndex: isSelected ? 20 : 1, cursor: 'pointer' }}
       onClick={handleClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
-      {/* Progress ring SVG */}
-      <svg className="absolute inset-0 -rotate-90" width={displaySize} height={displaySize} style={{ zIndex: 2 }}>
-        <circle
-          cx={displaySize / 2} cy={displaySize / 2} r={ringRadius}
-          fill="none" stroke="#E0E0E0" strokeWidth="3" opacity="0.4"
-        />
-        <circle
-          cx={displaySize / 2} cy={displaySize / 2} r={ringRadius}
-          fill="none" stroke={isOver ? '#FF5252' : color} strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray={ringCircumference}
-          strokeDashoffset={ringCircumference * (1 - ringProgress)}
-          className="transition-all duration-700"
+      {/* Progress ring */}
+      <svg width={displaySize} height={displaySize} style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+        <circle cx={displaySize / 2} cy={displaySize / 2} r={ringR} fill="none" stroke="#E0E0E0" strokeWidth="2.5" opacity="0.45" />
+        <circle cx={displaySize / 2} cy={displaySize / 2} r={ringR} fill="none"
+          stroke={isOver ? '#FF5252' : color} strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={`${ringC * Math.min(ratio, 1)} ${ringC}`}
+          style={{ transition: 'stroke-dasharray 800ms ease' }}
         />
       </svg>
 
-      <div
-        className={cn(
-          "w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-200 animate-bubble-float",
-          hovered && "scale-110",
-          tapped && "animate-tap-bounce",
-        )}
-        style={{
-          background: lightBg,
-          border: `3px solid ${isOver ? '#FF5252' : '#000000'}`,
-          boxShadow: hovered ? `6px 6px 0px ${isOver ? '#FF5252' : '#000000'}` : `4px 4px 0px ${isOver ? '#FF5252' : '#000000'}`,
-          animationDuration: `${3 + (delay % 3) * 0.5}s`,
-          animationDelay: `${delay}ms`,
-        }}
-      >
-        <IconComponent size={displaySize > 90 ? 22 : 16} color={isOver ? '#FF5252' : color} strokeWidth={2.5} />
-        <span className="font-bold text-center px-1 leading-tight mt-0.5" style={{ fontSize: displaySize > 100 ? 11 : 9, color: '#000000' }}>
+      {/* Bubble body */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+        background: isSelected ? color : lightBg,
+        border: `3px solid ${isOver ? '#FF5252' : '#000000'}`,
+        boxShadow: isSelected ? `5px 5px 0px ${isOver ? '#FF5252' : '#000000'}` : `3px 3px 0px ${isOver ? '#FF5252' : '#000000'}`,
+        userSelect: 'none',
+      }}>
+        <Icon size={iconSize} color={isSelected ? '#FFFFFF' : (isOver ? '#FF5252' : color)} strokeWidth={2.5} />
+        <span style={{ fontSize, fontWeight: 800, color: isSelected ? '#FFFFFF' : '#000000', textAlign: 'center', padding: '0 6px', lineHeight: 1.2 }}>
           {bubble.name}
         </span>
-        <span className="font-black" style={{ fontSize: displaySize > 100 ? 10 : 8, color: isOver ? '#FF5252' : color }}>
+        <span style={{ fontSize: Math.max(fontSize - 1, 6), fontWeight: 900, color: isSelected ? 'rgba(255,255,255,0.8)' : (isOver ? '#FF5252' : color) }}>
           {bubble.actualWeeklyHours.toFixed(1)}h
         </span>
+        {isDrillable && !isSelected && bubble.children && bubble.children.length > 0 && (
+          <span style={{ fontSize: 6, color: isSelected ? 'rgba(255,255,255,0.6)' : '#999', lineHeight: 1 }}>
+            ↓ {bubble.children.length}
+          </span>
+        )}
       </div>
 
-      {hovered && (
-        <div className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap z-20 pointer-events-none animate-fade-up"
-          style={{ background: '#FFFFFF', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 10, padding: '6px 12px' }}>
-          <p className="text-xs font-bold text-foreground">{bubble.name}</p>
-          <p className="text-[10px] text-muted-foreground">{bubble.actualWeeklyHours.toFixed(1)}h / {bubble.expectedWeeklyHours}h target</p>
-          <p className="text-[10px] font-bold" style={{ color: isOver ? '#FF5252' : color }}>
-            {Math.round(ratio * 100)}% {isOver ? '(over)' : 'complete'}
-          </p>
-        </div>
+      {/* Selection pulse ring */}
+      {isSelected && (
+        <motion.div
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1.18, opacity: 1 }}
+          style={{ position: 'absolute', inset: -5, borderRadius: '50%', border: `2px dashed ${color}`, pointerEvents: 'none' }}
+        />
       )}
-    </div>
+    </motion.div>
   );
 };
 
 // ─── Log Time Modal (mobile) ──────────────────────────────────────────────────
-interface LogTimeModalProps {
-  bubble: BubbleItem | null;
-  onClose: () => void;
-  onLog: (bubbleId: string, bubbleName: string, minutes: number) => void;
-}
-
-const LogTimeModal = ({ bubble, onClose, onLog }: LogTimeModalProps) => {
+const LogTimeModal = ({ bubble, onClose, onLog }: { bubble: BubbleItem | null; onClose: () => void; onLog: (id: string, name: string, mins: number) => void }) => {
   const [minutes, setMinutes] = useState(30);
   if (!bubble) return null;
   const color = getCategoryColor(bubble.category);
   const lightBg = getCategoryLightBg(bubble.category);
-  const IconComponent = BUBBLE_ICONS[bubble.id] || Briefcase;
-
+  const IconComponent = BUBBLE_ICONS[bubble.id] ?? Briefcase;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pb-28 lg:hidden">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-sm animate-fade-up"
-        style={{ background: '#FFFFFF', border: '4px solid #000000', boxShadow: '6px 6px 0px #000000', borderRadius: 20, padding: 24 }}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X size={20} strokeWidth={2.5} /></button>
+      <motion.div
+        initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        className="relative w-full max-w-sm"
+        style={{ background: '#FFFFFF', border: '4px solid #000000', boxShadow: '6px 6px 0px #000000', borderRadius: 20, padding: 24 }}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground"><X size={20} strokeWidth={2.5} /></button>
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: lightBg, border: '3px solid #000000' }}>
+          <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: lightBg, border: '3px solid #000000' }}>
             <IconComponent size={22} color={color} strokeWidth={2.5} />
           </div>
           <div>
-            <h3 className="font-bold text-foreground text-base">{bubble.name}</h3>
-            <p className="text-xs text-muted-foreground">{bubble.actualWeeklyHours}h logged this week</p>
+            <h3 className="font-bold text-base text-foreground">{bubble.name}</h3>
+            <p className="text-xs text-muted-foreground">{bubble.actualWeeklyHours.toFixed(1)}h logged this week</p>
           </div>
         </div>
         <div className="mb-5">
-          <label className="text-xs font-bold text-foreground mb-2 block uppercase tracking-wider">Log Time</label>
+          <label className="text-xs font-black uppercase tracking-wider text-foreground mb-2 block">Log Time</label>
           <div className="flex gap-2 mb-3 flex-wrap">
             {[15, 30, 45, 60, 90, 120].map(m => (
               <button key={m} onClick={() => setMinutes(m)} className="px-3 py-2 text-xs font-bold transition-all"
@@ -162,37 +201,33 @@ const LogTimeModal = ({ bubble, onClose, onLog }: LogTimeModalProps) => {
           style={{ background: color, color: '#FFFFFF', border: '3px solid #000000', boxShadow: '4px 4px 0px #000000', borderRadius: 12 }}>
           Log {minutes}m to {bubble.name}
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 };
 
 // ─── Desktop Right Panel ──────────────────────────────────────────────────────
-interface RightPanelProps {
+const RightPanel = ({ bubble, onLog, onClose, recentLogs }: {
   bubble: BubbleItem | null;
-  onLog: (bubbleId: string, bubbleName: string, minutes: number) => void;
+  onLog: (id: string, name: string, mins: number) => void;
   onClose: () => void;
   recentLogs: import("@/hooks/useTimeLogs").TimeLog[];
-}
-
-const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => {
+}) => {
   const [minutes, setMinutes] = useState(30);
 
   const panelContent = bubble ? (() => {
     const color = getCategoryColor(bubble.category);
     const lightBg = getCategoryLightBg(bubble.category);
-    const IconComponent = BUBBLE_ICONS[bubble.id] || Briefcase;
+    const IconComponent = BUBBLE_ICONS[bubble.id] ?? Briefcase;
     const ratio = bubble.expectedWeeklyHours > 0 ? bubble.actualWeeklyHours / bubble.expectedWeeklyHours : 0;
     const isOver = ratio > 1;
     const isBehind = ratio < 0.6;
 
     return (
       <>
-        {/* Bubble header */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: lightBg, border: '3px solid #000000', boxShadow: '3px 3px 0px #000000' }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: lightBg, border: '3px solid #000000', boxShadow: '3px 3px 0px #000000' }}>
               <IconComponent size={22} color={color} strokeWidth={2.5} />
             </div>
             <div>
@@ -202,8 +237,6 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground mt-1"><X size={18} strokeWidth={2.5} /></button>
         </div>
-
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="p-3 text-center" style={{ background: lightBg, border: '2px solid #000000', boxShadow: '2px 2px 0px #000000', borderRadius: 12 }}>
             <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground mb-1">Logged</p>
@@ -214,8 +247,6 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
             <p className="text-xl font-black text-foreground">{bubble.expectedWeeklyHours}h</p>
           </div>
         </div>
-
-        {/* Progress bar */}
         <div className="mb-6">
           <div className="flex justify-between mb-1.5">
             <span className="text-xs font-bold text-muted-foreground">Progress</span>
@@ -226,16 +257,14 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
           </div>
           <div className="flex items-center gap-1 mt-2">
             {isOver ? (
-              <><TrendingUp size={11} color="#FF5252" strokeWidth={2.5} /><span className="text-[11px] font-bold" style={{ color: '#FF5252' }}>+{(bubble.actualWeeklyHours - bubble.expectedWeeklyHours).toFixed(1)}h over target</span></>
+              <><TrendingUp size={11} color="#FF5252" strokeWidth={2.5} /><span className="text-[11px] font-bold" style={{ color: '#FF5252' }}>+{(bubble.actualWeeklyHours - bubble.expectedWeeklyHours).toFixed(1)}h over</span></>
             ) : isBehind ? (
-              <><TrendingDown size={11} color="#FF9800" strokeWidth={2.5} /><span className="text-[11px] font-bold" style={{ color: '#FF9800' }}>{(bubble.expectedWeeklyHours - bubble.actualWeeklyHours).toFixed(1)}h behind target</span></>
+              <><TrendingDown size={11} color="#FF9800" strokeWidth={2.5} /><span className="text-[11px] font-bold" style={{ color: '#FF9800' }}>{(bubble.expectedWeeklyHours - bubble.actualWeeklyHours).toFixed(1)}h behind</span></>
             ) : (
               <><Target size={11} color={color} strokeWidth={2.5} /><span className="text-[11px] font-bold" style={{ color }}>On track</span></>
             )}
           </div>
         </div>
-
-        {/* Quick log */}
         <div className="mb-6">
           <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-3">Quick Log</p>
           <div className="flex flex-wrap gap-2 mb-3">
@@ -251,8 +280,6 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
             Log {minutes < 60 ? `${minutes}m` : `${minutes / 60}h`} to {bubble.name}
           </button>
         </div>
-
-        {/* Recent logs for this bubble */}
         {recentLogs.filter(l => l.bubbleId === bubble.id).length > 0 && (
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-3">Activity Log</p>
@@ -273,202 +300,336 @@ const RightPanel = ({ bubble, onLog, onClose, recentLogs }: RightPanelProps) => 
       </>
     );
   })() : (
-    <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
-      <div className="w-20 h-20 rounded-full mx-auto mb-5 animate-bubble-pulse"
-        style={{ background: '#E8F5E9', border: '4px solid #000000', boxShadow: '4px 4px 0px #000000' }} />
+    <div className="flex flex-col items-center justify-center text-center py-16">
+      <div className="w-20 h-20 rounded-full mx-auto mb-5" style={{ background: '#E8F5E9', border: '4px solid #000000', boxShadow: '4px 4px 0px #000000' }} />
       <p className="font-black text-foreground text-lg mb-2">Select a Bubble</p>
-      <p className="text-sm text-muted-foreground leading-relaxed max-w-[180px]">Click any bubble on the map to see details and log time</p>
+      <p className="text-sm text-muted-foreground max-w-[180px]">Tap any bubble to see details and log time</p>
     </div>
   );
 
   return (
-    <aside
-      className="hidden lg:flex flex-col w-80 shrink-0 min-h-screen overflow-y-auto"
-      style={{ background: '#FFFFFF', borderLeft: '4px solid #000000' }}
-    >
+    <aside className="hidden lg:flex flex-col w-80 shrink-0 min-h-screen overflow-y-auto"
+      style={{ background: '#FFFFFF', borderLeft: '4px solid #000000' }}>
       <div className="px-6 py-6 border-b-4 border-black">
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Details</p>
       </div>
-      <div className="flex-1 px-6 py-6 overflow-y-auto">
-        {panelContent}
-      </div>
+      <div className="flex-1 px-6 py-6 overflow-y-auto">{panelContent}</div>
     </aside>
   );
 };
 
-// ─── Bubble Layout ────────────────────────────────────────────────────────────
-const BUBBLE_LAYOUT: Record<string, { x: number; y: number; size: number }> = {
-  work:          { x: 0.22, y: 0.28, size: 130 },
-  upskilling:    { x: 0.58, y: 0.22, size: 100 },
-  health:        { x: 0.78, y: 0.52, size: 95 },
-  relationships: { x: 0.50, y: 0.65, size: 90 },
-  leisure:       { x: 0.20, y: 0.65, size: 115 },
-};
-
 // ─── Main BubbleMap ───────────────────────────────────────────────────────────
 export const BubbleMap = () => {
-  const { bubbles, updateBubbleHours } = useFirestoreBubbles();
-  const [selected, setSelected] = useState<BubbleItem | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [expandedBubble, setExpandedBubble] = useState<string | null>(null);
+  const { bubbles, updateBubbleHours, loaded } = useFirestoreBubbles();
   const { logs, logTime } = useTimeLogs();
   const lifeScore = useLifeScore(bubbles, logs);
 
-  const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
-  const totalActual = bubbles.reduce((s, b) => s + b.actualWeeklyHours, 0);
-  const balanceScore = totalExpected > 0 ? Math.round((totalActual / totalExpected) * 100) : 0;
+  const [selected, setSelected] = useState<BubbleItem | null>(null);
+  const [drillBubble, setDrillBubble] = useState<BubbleItem | null>(null);
+  const [showLogModal, setShowLogModal] = useState(false);
 
-  const handleLog = async (bubbleId: string, bubbleName: string, minutes: number) => {
+  // Canvas pan/zoom via MotionValues (no re-renders during drag)
+  const panX = useMotionValue(0);
+  const panY = useMotionValue(0);
+  const scaleVal = useMotionValue(1);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isPanRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0, px: 0, py: 0 });
+  const didDragRef = useRef(false);
+  const pinchRef = useRef({ active: false, dist: 0, startScale: 1 });
+
+  // Center canvas — wait one animation frame so DOM has laid out
+  const centerCanvas = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (!containerRef.current) return;
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      if (width === 0) return;
+      panX.set(width / 2);
+      panY.set(height / 2);
+      scaleVal.set(1);
+    });
+  }, [panX, panY, scaleVal]);
+
+  // Center on mount, on drill, and when Firestore data first arrives
+  useEffect(() => { centerCanvas(); }, [centerCanvas]);
+  useEffect(() => { if (loaded) centerCanvas(); }, [loaded, centerCanvas]);
+  useEffect(() => { centerCanvas(); }, [drillBubble, centerCanvas]);
+
+  // Display bubbles: top-level or drilled children
+  const displayBubbles = useMemo(
+    () => drillBubble ? (drillBubble.children ?? []) : bubbles,
+    [drillBubble, bubbles]
+  );
+  const baseSize = drillBubble ? 85 : 110;
+  const positions = useMemo(() => computeLayout(displayBubbles, !!drillBubble), [displayBubbles, drillBubble]);
+
+  // ── Pointer handlers for pan ─────────────────────────────────────────────
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-bubble]')) return;
+    isPanRef.current = true;
+    didDragRef.current = false;
+    panStartRef.current = { x: e.clientX, y: e.clientY, px: panX.get(), py: panY.get() };
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  }, [panX, panY]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanRef.current) return;
+    const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 5) didDragRef.current = true;
+    if (didDragRef.current) {
+      panX.set(panStartRef.current.px + dx);
+      panY.set(panStartRef.current.py + dy);
+    }
+  }, [panX, panY]);
+
+  const onPointerUp = useCallback(() => {
+    isPanRef.current = false;
+    // Delay reset so the click handler can read didDragRef before we clear it
+    setTimeout(() => { didDragRef.current = false; }, 50);
+  }, []);
+
+  // ── Touch pinch zoom ─────────────────────────────────────────────────────
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 2) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchRef.current = { active: true, dist: Math.sqrt(dx * dx + dy * dy), startScale: scaleVal.get() };
+  }, [scaleVal]);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 2 || !pinchRef.current.active) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx * dx + dy * dy);
+    const next = Math.min(Math.max(pinchRef.current.startScale * (newDist / pinchRef.current.dist), 0.35), 3.5);
+    scaleVal.set(next);
+  }, [scaleVal]);
+
+  const onTouchEnd = useCallback(() => { pinchRef.current.active = false; }, []);
+
+  // ── Wheel zoom — must be non-passive to call preventDefault ────────────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.92 : 1.08;
+      scaleVal.set(Math.min(Math.max(scaleVal.get() * delta, 0.25), 4));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [scaleVal]);
+
+  // ── Bubble interactions ──────────────────────────────────────────────────
+  const handleSelect = useCallback((b: BubbleItem) => {
+    if (didDragRef.current) return;
+    setSelected(prev => prev?.id === b.id ? null : b);
+    setShowLogModal(true);
+  }, []);
+
+  const handleDrill = useCallback((b: BubbleItem) => {
+    if (b.children && b.children.length > 0) {
+      setDrillBubble(b);
+      setSelected(null);
+      setShowLogModal(false);
+    }
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setDrillBubble(null);
+    setSelected(null);
+    setShowLogModal(false);
+  }, []);
+
+  const handleLog = useCallback(async (bubbleId: string, bubbleName: string, minutes: number) => {
     await updateBubbleHours(bubbleId, minutes);
     await logTime(bubbleId, bubbleName, minutes, "manual");
-  };
+    setShowLogModal(false);
+    setSelected(null);
+  }, [updateBubbleHours, logTime]);
 
-  const handleBubbleClick = (bubble: BubbleItem) => {
-    if (expandedBubble === bubble.id) {
-      setExpandedBubble(null);
-    } else if (bubble.children?.length) {
-      setExpandedBubble(bubble.id);
-      setSelected(bubble);
-    } else {
-      setSelected(bubble);
-    }
-  };
+  const totalActual = bubbles.reduce((s, b) => s + b.actualWeeklyHours, 0);
+  const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
+
+  // ── Loading state ─────────────────────────────────────────────────────────
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-background">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="font-bold text-sm text-muted-foreground">Loading your life map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Canvas (shared mobile + desktop) ─────────────────────────────────────
+  const canvas = (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden"
+      style={{ touchAction: 'none' }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Canvas layer — panned and scaled */}
+      <motion.div
+        style={{ x: panX, y: panY, scale: scaleVal, position: 'absolute', top: 0, left: 0, width: 1, height: 1 }}
+      >
+        <AnimatePresence mode="sync">
+          {displayBubbles.map((b, i) => {
+            const pos = positions[b.id];
+            if (!pos) return null;
+            return (
+              <BubbleNode
+                key={`${drillBubble?.id ?? 'root'}-${b.id}`}
+                bubble={b}
+                pos={pos}
+                baseSize={baseSize}
+                isSelected={selected?.id === b.id}
+                isDrillable={!drillBubble && (b.children?.length ?? 0) > 0}
+                index={i}
+                onSelect={handleSelect}
+                onDrill={handleDrill}
+              />
+            );
+          })}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Drill breadcrumb / back button */}
+      <AnimatePresence>
+        {drillBubble && (
+          <motion.button
+            initial={{ x: -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+            onClick={handleBack}
+            className="absolute top-4 left-4 z-30 flex items-center gap-2 px-4 py-2.5 font-black text-sm"
+            style={{ background: '#FFFFFF', border: '3px solid #000000', boxShadow: '4px 4px 0px #000000', borderRadius: 12 }}
+          >
+            <ChevronLeft size={16} strokeWidth={3} />
+            {drillBubble.name}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Hint text */}
+      {!drillBubble && displayBubbles.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+          <p className="text-[10px] font-medium text-muted-foreground/60 text-center">
+            drag to pan · pinch to zoom · double-tap to explore
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Top stats bar ─────────────────────────────────────────────────────────
+  const statsBar = (
+    <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-safe pt-4 pb-3 pointer-events-none">
+      {/* Mobile header */}
+      <div className="flex items-center justify-between mb-2 lg:hidden pointer-events-auto">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground font-display">
+            bubble<span style={{ color: '#4CAF50' }}>.</span>
+          </h1>
+          <p className="text-[11px] text-muted-foreground font-medium">Your life, visualized</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="px-3 py-1.5" style={{ background: '#E8F5E9', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Week</p>
+            <p className="text-sm font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h</p>
+          </div>
+          <div className="px-3 py-1.5" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Score</p>
+            <div className="flex items-center gap-0.5">
+              <Zap size={12} strokeWidth={2.5} color="#9C27B0" />
+              <p className="text-sm font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden lg:flex items-center justify-between pointer-events-auto">
+        <div>
+          <h2 className="text-xl font-black text-foreground">Life Map</h2>
+          <p className="text-xs text-muted-foreground">Week of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="px-4 py-2" style={{ background: '#E8F5E9', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">This Week</p>
+            <p className="text-base font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h <span className="text-muted-foreground text-xs font-normal">/ {totalExpected}h</span></p>
+          </div>
+          <div className="px-4 py-2" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Life Score</p>
+            <div className="flex items-center gap-1">
+              <Zap size={14} strokeWidth={2.5} color="#9C27B0" />
+              <p className="text-base font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Category legend ───────────────────────────────────────────────────────
+  const legend = (
+    <div className="absolute bottom-20 left-0 right-0 flex gap-2 flex-wrap justify-center px-4 pointer-events-none z-10 lg:bottom-6">
+      {[
+        { label: 'Work', color: '#4CAF50', bg: '#E8F5E9' },
+        { label: 'Learning', color: '#2196F3', bg: '#E3F2FD' },
+        { label: 'Health', color: '#FF9800', bg: '#FFF3E0' },
+        { label: 'People', color: '#E91E63', bg: '#FCE4EC' },
+        { label: 'Leisure', color: '#9C27B0', bg: '#F3E5F5' },
+      ].map(({ label, color, bg }) => (
+        <div key={label} className="flex items-center gap-1.5 px-3 py-1.5"
+          style={{ background: bg, border: '2px solid #000000', boxShadow: '2px 2px 0px #000000', borderRadius: 20 }}>
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: color, border: '1.5px solid #000000' }} />
+          <span className="text-[10px] font-bold text-foreground">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="flex w-full h-full">
-      {/* Canvas + Mobile UI */}
-      <div className="relative flex-1 h-screen bg-background overflow-hidden">
-        {/* Header — shown on mobile only */}
-        <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-12 pb-3 lg:pt-6">
-          <div className="flex items-center justify-between mb-3 lg:hidden">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground font-display">
-                bubble<span style={{ color: '#4CAF50' }}>.</span>
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">Your life, visualized</p>
-            </div>
-            <div className="px-4 py-2 text-right" style={{ background: '#FFFFFF', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Week</p>
-              <p className="text-sm font-black text-foreground">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-            </div>
-          </div>
-
-          {/* Desktop canvas header */}
-          <div className="hidden lg:flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-xl font-black text-foreground">Life Map</h2>
-              <p className="text-xs text-muted-foreground">Week of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-            </div>
-            <div className="flex gap-2">
-              <div className="px-4 py-2" style={{ background: '#E8F5E9', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-                <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">This Week</p>
-                <p className="text-base font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h <span className="text-muted-foreground text-xs font-normal">/ {totalExpected}h</span></p>
-              </div>
-              <div className="px-4 py-2" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-                <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Life Score</p>
-                <div className="flex items-center gap-1">
-                  <Zap size={14} strokeWidth={2.5} color="#9C27B0" />
-                  <p className="text-base font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
-                </div>
-              </div>
-              <div className="px-4 py-2" style={{ background: '#E3F2FD', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-                <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Balance</p>
-                <p className="text-base font-black" style={{ color: '#2196F3' }}>{balanceScore}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile stats row */}
-          <div className="flex gap-2 lg:hidden">
-            <div className="flex-1 px-3 py-2" style={{ background: '#E8F5E9', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">This Week</p>
-              <p className="text-base font-black" style={{ color: '#4CAF50' }}>{totalActual.toFixed(0)}h <span className="text-muted-foreground text-xs font-normal">/ {totalExpected}h</span></p>
-            </div>
-            <div className="flex-1 px-3 py-2" style={{ background: '#F3E5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Life Score</p>
-              <div className="flex items-center gap-1">
-                <Zap size={14} strokeWidth={2.5} color="#9C27B0" />
-                <p className="text-base font-black" style={{ color: '#9C27B0' }}>{lifeScore.total}</p>
-              </div>
-            </div>
-            <div className="px-3 py-2 flex items-center gap-1" style={{ background: '#F5F5F5', border: '3px solid #000000', boxShadow: '3px 3px 0px #000000', borderRadius: 12 }}>
-              <button onClick={() => setZoom(z => Math.max(0.7, z - 0.1))} className="font-black text-lg leading-none px-1 text-foreground">−</button>
-              <span className="text-[10px] font-bold text-muted-foreground w-7 text-center">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.min(1.5, z + 0.1))} className="font-black text-lg leading-none px-1 text-foreground">+</button>
-            </div>
-          </div>
+      {/* Canvas area */}
+      <div className="relative flex-1 overflow-hidden" style={{ height: '100%' }}>
+        {statsBar}
+        <div className="absolute inset-0" style={{ paddingTop: 96 }}>
+          {canvas}
         </div>
+        {legend}
 
-        {/* Bubble Canvas */}
-        <div className="absolute inset-0 overflow-hidden" style={{ paddingTop: 140, paddingBottom: 100 }}>
-          <div className="relative w-full h-full transition-transform duration-300" style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
-            {bubbles.map((bubble, i) => {
-              const layout = BUBBLE_LAYOUT[bubble.id];
-              if (!layout) return null;
-              const canvasW = typeof window !== 'undefined' ? window.innerWidth - (window.innerWidth >= 1024 ? 576 : 0) : 400;
-              const canvasH = typeof window !== 'undefined' ? window.innerHeight - 240 : 500;
-              return (
-                <BubbleNode key={bubble.id} bubble={bubble} size={layout.size}
-                  x={layout.x * canvasW} y={layout.y * canvasH}
-                  onSelect={handleBubbleClick} delay={i * 100} />
-              );
-            })}
-
-            {expandedBubble && (() => {
-              const parent = bubbles.find(b => b.id === expandedBubble);
-              const parentLayout = BUBBLE_LAYOUT[expandedBubble];
-              if (!parent?.children || !parentLayout) return null;
-              const canvasW = typeof window !== 'undefined' ? window.innerWidth - (window.innerWidth >= 1024 ? 576 : 0) : 400;
-              const canvasH = typeof window !== 'undefined' ? window.innerHeight - 240 : 500;
-              const px = parentLayout.x * canvasW;
-              const py = parentLayout.y * canvasH;
-              return parent.children.map((child, i) => {
-                const angle = (i / parent.children!.length) * Math.PI * 2 - Math.PI / 2;
-                return (
-                  <BubbleNode key={child.id} bubble={child} size={65}
-                    x={px + Math.cos(angle) * 110} y={py + Math.sin(angle) * 110}
-                    onSelect={setSelected} delay={i * 80} />
-                );
-              });
-            })()}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-24 left-4 right-4 flex gap-2 flex-wrap justify-center lg:bottom-6">
-          {[
-            { label: 'Work', color: '#4CAF50', bg: '#E8F5E9' },
-            { label: 'Learning', color: '#2196F3', bg: '#E3F2FD' },
-            { label: 'Health', color: '#FF9800', bg: '#FFF3E0' },
-            { label: 'People', color: '#E91E63', bg: '#FCE4EC' },
-            { label: 'Leisure', color: '#9C27B0', bg: '#F3E5F5' },
-          ].map(({ label, color, bg }) => (
-            <div key={label} className="flex items-center gap-1.5 px-3 py-1.5"
-              style={{ background: bg, border: '2px solid #000000', boxShadow: '2px 2px 0px #000000', borderRadius: 20 }}>
-              <div className="w-2.5 h-2.5 rounded-full" style={{ background: color, border: '1.5px solid #000000' }} />
-              <span className="text-[10px] font-bold text-foreground">{label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* FAB — mobile only */}
-        <button className="lg:hidden absolute bottom-28 right-4 w-14 h-14 rounded-full flex items-center justify-center transition-all active:translate-y-0.5"
-          style={{ background: '#000000', border: '3px solid #000000', boxShadow: '4px 4px 0px #4CAF50', color: '#FFFFFF' }}>
-          <Plus size={24} strokeWidth={3} />
-        </button>
-
-        {/* Desktop FAB */}
-        <button className="hidden lg:flex absolute bottom-8 right-8 w-14 h-14 rounded-full items-center justify-center transition-all active:translate-y-0.5"
-          style={{ background: '#000000', border: '3px solid #000000', boxShadow: '4px 4px 0px #4CAF50', color: '#FFFFFF' }}>
-          <Plus size={24} strokeWidth={3} />
-        </button>
-
-        {/* Mobile Log Modal */}
-        <LogTimeModal bubble={selected} onClose={() => setSelected(null)} onLog={handleLog} />
+        {/* Mobile log modal */}
+        <AnimatePresence>
+          {showLogModal && selected && (
+            <LogTimeModal
+              bubble={selected}
+              onClose={() => { setShowLogModal(false); setSelected(null); }}
+              onLog={handleLog}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Desktop Right Panel */}
-      <RightPanel bubble={selected} onLog={handleLog} onClose={() => setSelected(null)} recentLogs={logs} />
+      {/* Desktop right panel */}
+      <RightPanel
+        bubble={selected}
+        onLog={handleLog}
+        onClose={() => setSelected(null)}
+        recentLogs={logs}
+      />
     </div>
   );
 };

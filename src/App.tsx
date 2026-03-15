@@ -22,12 +22,12 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <ProtectedRoute>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex h-screen overflow-hidden bg-background">
               {/* Desktop sidebar — hidden on mobile */}
               <DesktopSidebar />
 
               {/* Main content */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/track" element={<TrackPage />} />

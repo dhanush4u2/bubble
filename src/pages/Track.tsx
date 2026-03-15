@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { getCategoryColor, getCategoryLightBg, BubbleItem } from "@/data/bubbleData";
-import { Play, Pause, RotateCcw, CheckCircle, Briefcase, BookOpen, Activity, Heart, Gamepad2 } from "lucide-react";
+import { Play, Pause, RotateCcw, CheckCircle, Briefcase, BookOpen, Activity, Heart, Gamepad2, Circle, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimeLogs } from "@/hooks/useTimeLogs";
 import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
+import { useSessions } from "@/hooks/useSessions";
+import { usePlans } from "@/hooks/usePlans";
+import { DailyLifeCircle } from "@/components/DailyLifeCircle";
+import { AddSessionModal } from "@/components/AddSessionModal";
 
 const FOCUS_DURATIONS = [15, 25, 45, 60, 90];
 
@@ -11,15 +15,35 @@ const BUBBLE_ICONS: Record<string, React.ElementType> = {
   work: Briefcase, upskilling: BookOpen, health: Activity, relationships: Heart, leisure: Gamepad2,
 };
 
+type Tab = "timer" | "circle";
+
 export default function TrackPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("circle");
   const [selectedBubble, setSelectedBubble] = useState<BubbleItem | null>(null);
   const [timerMinutes, setTimerMinutes] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [manualMinutes, setManualMinutes] = useState(30);
+  const [circleDate, setCircleDate] = useState(new Date().toISOString().split("T")[0]);
+  const [showAddSession, setShowAddSession] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const { logs, logTime } = useTimeLogs();
   const { bubbles, updateBubbleHours } = useFirestoreBubbles();
+  const { sessions, addSession, deleteSession } = useSessions(circleDate);
+  const { plans } = usePlans();
+
+  const handleAddSession = async (data: Parameters<typeof addSession>[0]) => {
+    // Save session to Firestore
+    await addSession(data);
+    // Also update the bubble's actualWeeklyHours (only for current week sessions)
+    const today = new Date().toISOString().split("T")[0];
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    if (data.date >= weekStartStr && data.date <= today) {
+      await updateBubbleHours(data.bubbleId, data.duration);
+    }
+  };
 
   useEffect(() => { setTimeLeft(timerMinutes * 60); setIsRunning(false); }, [timerMinutes]);
 
@@ -55,9 +79,50 @@ export default function TrackPage() {
     await logTime(selectedBubble.id, selectedBubble.name, manualMinutes, "manual");
   };
 
+  // Tab switcher UI
+  const tabBar = (
+    <div className="flex mb-5 p-1" style={{ background: '#F5F5F5', border: '3px solid #000000', borderRadius: 14, boxShadow: '3px 3px 0px #000000' }}>
+      {([
+        { key: "circle" as Tab, label: "Daily Circle", Icon: Circle },
+        { key: "timer" as Tab, label: "Focus Timer", Icon: Timer },
+      ] as { key: Tab; label: string; Icon: React.ElementType }[]).map(({ key, label, Icon }) => (
+        <button
+          key={key}
+          onClick={() => setActiveTab(key)}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black transition-all"
+          style={{
+            background: activeTab === key ? '#000000' : 'transparent',
+            color: activeTab === key ? '#FFFFFF' : '#777777',
+            borderRadius: 10,
+            border: 'none',
+          }}
+        >
+          <Icon size={14} strokeWidth={2.5} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   // Shared content for both mobile and desktop
   const content = (
     <>
+      {tabBar}
+
+      {activeTab === "circle" && (
+        <DailyLifeCircle
+          sessions={sessions}
+          bubbles={bubbles}
+          date={circleDate}
+          plans={plans}
+          onDateChange={setCircleDate}
+          onAddSession={() => setShowAddSession(true)}
+          onDeleteSession={deleteSession}
+        />
+      )}
+
+      {activeTab === "timer" && (
+        <>
       {/* Bubble Selector */}
       <div className="mb-5">
         <p className="text-[10px] font-black text-foreground mb-3 uppercase tracking-widest">Select Bubble</p>
@@ -163,26 +228,39 @@ export default function TrackPage() {
           </div>
         </div>
       )}
+        </>
+      )}
     </>
   );
 
   return (
     <>
+      {/* Add Session Modal */}
+      {showAddSession && (
+        <AddSessionModal
+          bubbles={bubbles}
+          sessions={sessions}
+          date={circleDate}
+          onSave={handleAddSession}
+          onClose={() => setShowAddSession(false)}
+        />
+      )}
+
       {/* Mobile layout */}
-      <div className="lg:hidden min-h-screen pb-24 pt-6 px-4 bg-background">
+      <div className="lg:hidden h-full overflow-y-auto pb-24 pt-6 px-4 bg-background">
         <div className="mb-6">
           <h1 className="text-2xl font-black text-foreground font-display">Track Time</h1>
-          <p className="text-sm text-muted-foreground font-medium">Log what you're working on</p>
+          <p className="text-sm text-muted-foreground font-medium">Log sessions and focus time</p>
         </div>
         {content}
       </div>
 
       {/* Desktop layout */}
-      <div className="hidden lg:flex min-h-screen bg-background">
+      <div className="hidden lg:flex h-full bg-background">
         <div className="flex-1 overflow-y-auto px-10 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-black text-foreground font-display">Track Time</h1>
-            <p className="text-muted-foreground font-medium mt-1">Log focus sessions and activities</p>
+            <p className="text-muted-foreground font-medium mt-1">Log sessions and focus time</p>
           </div>
           <div className="max-w-2xl">
             {content}

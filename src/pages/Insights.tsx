@@ -227,7 +227,7 @@ export default function InsightsPage() {
   return (
     <>
       {/* Mobile */}
-      <div className="lg:hidden min-h-screen pb-24 pt-6 px-4 bg-background">
+      <div className="lg:hidden h-full overflow-y-auto pb-24 pt-6 px-4 bg-background">
         <div className="mb-6">
           <h1 className="text-2xl font-black text-foreground font-display">Insights</h1>
           <p className="text-sm text-muted-foreground font-medium">Week of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
@@ -236,7 +236,7 @@ export default function InsightsPage() {
       </div>
 
       {/* Desktop */}
-      <div className="hidden lg:flex min-h-screen bg-background">
+      <div className="hidden lg:flex h-full bg-background">
         <div className="flex-1 overflow-y-auto px-10 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-black text-foreground font-display">Insights</h1>

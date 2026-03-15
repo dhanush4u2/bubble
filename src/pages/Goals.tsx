@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { getCategoryColor, getCategoryLightBg, BubbleItem } from "@/data/bubbleData";
-import { Target, TrendingUp, TrendingDown, Edit2, Check, AlertTriangle, BookOpen, Zap } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Edit2, Check, AlertTriangle, BookOpen, Zap, CalendarDays } from "lucide-react";
 import { useFirestoreBubbles } from "@/hooks/useFirestoreBubbles";
 import { useTimeLogs } from "@/hooks/useTimeLogs";
 import { useLifeScore } from "@/hooks/useLifeScore";
+import { usePlans } from "@/hooks/usePlans";
+import TimePlannerModal from "@/components/TimePlannerModal";
 
 /** Generate dynamic life drift alerts from real bubble data */
 const generateDriftAlerts = (bubbles: BubbleItem[]) => {
@@ -44,8 +46,10 @@ const GoalsContent = () => {
   const { bubbles, updateExpectedHours } = useFirestoreBubbles();
   const { logs } = useTimeLogs();
   const lifeScore = useLifeScore(bubbles, logs);
+  const { savePlan, deletePlan, getPlanForBubble } = usePlans();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState(0);
+  const [planningBubble, setPlanningBubble] = useState<BubbleItem | null>(null);
   const driftAlerts = useMemo(() => generateDriftAlerts(bubbles), [bubbles]);
 
   const totalExpected = bubbles.reduce((s, b) => s + b.expectedWeeklyHours, 0);
@@ -132,6 +136,13 @@ const GoalsContent = () => {
                     ) : (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-black" style={{ color }}>{bubble.expectedWeeklyHours}h/wk</span>
+                        <button
+                          onClick={() => setPlanningBubble(bubble)}
+                          className="flex items-center justify-center"
+                          title="Plan schedule"
+                          style={{ background: getPlanForBubble(bubble.id) ? color : '#F5F5F5', border: '2px solid #000000', borderRadius: 6, width: 24, height: 24 }}>
+                          <CalendarDays size={11} color={getPlanForBubble(bubble.id) ? "#FFFFFF" : "#000000"} strokeWidth={2.5} />
+                        </button>
                         <button onClick={() => { setEditingId(bubble.id); setEditValue(bubble.expectedWeeklyHours); }}
                           className="flex items-center justify-center"
                           style={{ background: '#F5F5F5', border: '2px solid #000000', borderRadius: 6, width: 24, height: 24 }}>
@@ -171,6 +182,17 @@ const GoalsContent = () => {
           ))}
         </div>
       </div>
+
+      {/* Time Planner Modal */}
+      {planningBubble && (
+        <TimePlannerModal
+          bubble={planningBubble}
+          existingPlan={getPlanForBubble(planningBubble.id)}
+          onClose={() => setPlanningBubble(null)}
+          onSave={savePlan}
+          onDelete={deletePlan}
+        />
+      )}
     </>
   );
 };
@@ -179,7 +201,7 @@ export default function GoalsPage() {
   return (
     <>
       {/* Mobile */}
-      <div className="lg:hidden min-h-screen pb-24 pt-6 px-4 bg-background">
+      <div className="lg:hidden h-full overflow-y-auto pb-24 pt-6 px-4 bg-background">
         <div className="mb-6">
           <h1 className="text-2xl font-black text-foreground font-display">Goals</h1>
           <p className="text-sm text-muted-foreground font-medium">Design your ideal week</p>
@@ -188,7 +210,7 @@ export default function GoalsPage() {
       </div>
 
       {/* Desktop */}
-      <div className="hidden lg:flex min-h-screen bg-background">
+      <div className="hidden lg:flex h-full bg-background">
         <div className="flex-1 overflow-y-auto px-10 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-black text-foreground font-display">Goals</h1>

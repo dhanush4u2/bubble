@@ -49,3 +49,30 @@ In Firebase Console > Authentication > Settings > Authorized domains, add your V
 ### 5. Firestore Security Rules
 
 In Firebase Console > Firestore Database > Rules, publish rules that allow authenticated users to read/write only their own data (users/{userId}, bubbles/{bubbleId}, timeLogs/{logId} where request.auth.uid == resource.data.userId).
+
+The Firestore rules must cover 4 collections: users, bubbles, timeLogs, and sessions.
+
+Example:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /bubbles/{bubbleId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    match /timeLogs/{logId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+  }
+}
+```
